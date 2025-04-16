@@ -1,39 +1,76 @@
-// Kanal verisi almak için REST API isteği
-fetch('https://api.kick.com/public/v1/channels/byqurn')  // Kanal adı yerine doğru kanal adı ekle
-  .then(response => response.json())
-  .then(data => {
-    console.log('Kanal Verisi:', data);
-    // Kanal verisi alındıktan sonra WebSocket bağlantısını kuruyoruz
+const chatContainer = document.getElementById('chat-container');
+const connectionStatus = document.getElementById('connection-status');
+let channel = 'byqurn'; // Default channel
+const settingsToggle = document.getElementById('settings-toggle');
+const settingsContent = document.getElementById('settings-content');
+const saveSettingsButton = document.getElementById('save-settings');
+const channelInput = document.getElementById('channel-input');
 
-    const channelName = "byqurn"; // Kanal adı (değiştirilebilir)
+let socket;
 
-    const ws = new WebSocket(`wss://chat.kick.com/${channelName}`);
+// WebSocket bağlantısı kurma
+function connectToChat() {
+  connectionStatus.textContent = 'Connecting...';
+  socket = new WebSocket(`wss://chat.kick.com/${channel}`);
 
-    ws.onopen = () => {
-      console.log('WebSocket bağlantısı başarıyla kuruldu!');
-    };
+  socket.onopen = () => {
+    connectionStatus.textContent = 'Connected';
+  };
 
-    ws.onmessage = (event) => {
-      // WebSocket üzerinden gelen mesajları işliyoruz
-      console.log('Yeni mesaj:', event.data);
-      const message = JSON.parse(event.data);
-      if (message.type === 'message') {
-        const username = message.data.sender.username;
-        const content = message.data.content;
-        console.log(`Mesajı gönderen: ${username}, İçerik: ${content}`);
-        // UI'ye mesajları ekleyebilirsin
-      }
-    };
+  socket.onerror = (error) => {
+    console.error('WebSocket Error: ', error);
+    connectionStatus.textContent = 'Error connecting';
+  };
 
-    ws.onerror = (error) => {
-      console.error('WebSocket Hatası:', error);
-    };
+  socket.onclose = () => {
+    connectionStatus.textContent = 'Disconnected';
+  };
 
-    ws.onclose = () => {
-      console.log('WebSocket bağlantısı kapandı');
-    };
+  socket.onmessage = (event) => {
+    const messageData = JSON.parse(event.data);
+    if (messageData && messageData.message) {
+      displayMessage(messageData);
+    }
+  };
+}
 
-  })
-  .catch(error => {
-    console.error('Kanal verisi alınırken hata oluştu:', error);
-  });
+// Mesajı ekranda gösterme
+function displayMessage(messageData) {
+  const messageElement = document.createElement('div');
+  messageElement.classList.add('chat-message');
+
+  // Kullanıcı adı kalın, mesaj metni normal
+  const usernameElement = document.createElement('strong');
+  usernameElement.classList.add('username');
+  usernameElement.textContent = messageData.user;
+
+  const messageText = document.createElement('span');
+  messageText.classList.add('message-text');
+  messageText.innerHTML = messageData.message;  // Eğer emoji varsa, burada işlenecek
+
+  messageElement.appendChild(usernameElement);
+  messageElement.appendChild(messageText);
+
+  chatContainer.prepend(messageElement); // Mesajı üstte göster
+
+  // Eğer fazla mesaj varsa, ilkini sil
+  if (chatContainer.children.length > 50) {
+    chatContainer.removeChild(chatContainer.lastChild);
+  }
+}
+
+// Kanal adı ve diğer ayarları kaydetme
+saveSettingsButton.addEventListener('click', () => {
+  channel = channelInput.value.trim();
+  connectToChat();
+});
+
+// Ayar paneli açma
+settingsToggle.addEventListener('click', () => {
+  settingsContent.classList.toggle('hidden');
+});
+
+// Sayfa yüklendiğinde chat'e bağlan
+window.onload = () => {
+  connectToChat();
+};
