@@ -1,90 +1,92 @@
-const chatContainer = document.getElementById('chat-container');
-const connectionStatus = document.getElementById('connection-status');
-const saveSettingsButton = document.getElementById('save-settings');
-const settingsToggle = document.getElementById('settings-toggle'); // Bu satırı ekledim
-const settingsContent = document.getElementById('settings-content');
-const channelInput = document.getElementById('channel-input'); // Bu satırı ekledim
-let socket;
-let channel = 'byqurn'; // Sabit kanal adı 'byqurn'
-
-// Public Key (API'den alınan değer)
-const publicKey = `-----BEGIN PUBLIC KEY-----
-MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq/+l1WnlRrGSolDMA+A8
-6rAhMbQGmQ2SapVcGM3zq8ANXjnhDWocMqfWcTd95btDydITa10kDvHzw9WQOqp2
-MZI7ZyrfzJuz5nhTPCiJwTwnEtWft7nV14BYRDHvlfqPUaZ+1KR4OCaO/wWIk/rQ
-L/TjY0M70gse8rlBkbo2a8rKhu69RQTRsoaf4DVhDPEeSeI5jVrRDGAMGL3cGuyY
-6CLKGdjVEM78g3JfYOvDU/RvfqD7L89TZ3iN94jrmWdGz34JNlEI5hqK8dd7C5EF
-BEbZ5jgB8s8ReQV8H+MkuffjdAj3ajDDX3DOJMIut1lBrUVD1AaSrGCKHooWoL2e
-twIDAQAB
------END PUBLIC KEY-----`;
-
-// WebSocket bağlantısı kurma
+// WebSocket bağlantısı kurmak için gerekli fonksiyon
 function connectToChat() {
-  connectionStatus.textContent = 'Connecting...';
-  
-  // WebSocket URL'yi doğru endpoint ile değiştirdiğinden emin ol
-  socket = new WebSocket(`wss://chat.kick.com/byqurn`); // 'byqurn' kanal adı sabitlendi
+    const channel = document.getElementById("channel-input").value || 'byqurn';  // Kanal ismini kullanıcıdan al, default 'byqurn'
+    socket = new WebSocket(`wss://chat.kick.com/chat/${channel}`);
+    
+    // WebSocket bağlantısı açıldığında yapılacak işlemler
+    socket.onopen = () => {
+        console.log('Connected to chat');
+        document.getElementById('connection-status').textContent = "Connected";
+    };
+    
+    // WebSocket hatası oluştuğunda yapılacak işlemler
+    socket.onerror = (error) => {
+        console.error("WebSocket Error: ", error);
+        document.getElementById('connection-status').textContent = "Connection Error";
+        reconnectWebSocket();
+    };
 
-  socket.onopen = () => {
-    connectionStatus.textContent = 'Connected';
-    console.log('WebSocket connection established.');
-  };
+    // WebSocket bağlantısı kapandığında yapılacak işlemler
+    socket.onclose = () => {
+        console.log('WebSocket connection closed');
+        document.getElementById('connection-status').textContent = "Disconnected";
+        reconnectWebSocket();
+    };
 
-  socket.onerror = (error) => {
-    console.error('WebSocket Error: ', error);
-    connectionStatus.textContent = 'Error connecting';
-  };
+    // WebSocket'ten mesaj alındığında yapılacak işlemler
+    socket.onmessage = (event) => {
+        console.log('Received message:', event.data);
+        const message = JSON.parse(event.data);
+        displayMessage(message);
+    };
+}
 
-  socket.onclose = () => {
-    connectionStatus.textContent = 'Disconnected';
-    console.log('WebSocket connection closed.');
-  };
+// WebSocket bağlantısını yeniden denemek için fonksiyon
+function reconnectWebSocket() {
+    setTimeout(() => {
+        console.log("Reconnecting...");
+        connectToChat();
+    }, 5000); // 5 saniye sonra yeniden bağlanmayı dene
+}
 
-  socket.onmessage = (event) => {
-    const messageData = JSON.parse(event.data);
-    if (messageData && messageData.message) {
-      displayMessage(messageData);
+// Mesajı ekranda göstermek için fonksiyon
+function displayMessage(message) {
+    const chatContainer = document.getElementById('chat-container');
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('chat-message');
+    
+    // Kullanıcı adı ve mesajı ekle
+    messageElement.innerHTML = `<strong>${message.user}</strong>: ${message.text}`;
+    
+    // Yeni mesajı chat container'a ekle
+    chatContainer.appendChild(messageElement);
+    
+    // Eğer fazla mesaj varsa, eski mesajları kaldır
+    const maxMessages = parseInt(document.getElementById('max-messages').value) || 10;
+    if (chatContainer.children.length > maxMessages) {
+        chatContainer.removeChild(chatContainer.firstChild);
     }
-  };
+
+    // Yeni mesajı ekranda göster, animasyon ekleyebilirsin
 }
 
-// Mesajı ekranda gösterme
-function displayMessage(messageData) {
-  const messageElement = document.createElement('div');
-  messageElement.classList.add('chat-message');
+// Ayarları kaydetmek için fonksiyon
+function saveSettings() {
+    const channel = document.getElementById("channel-input").value || 'byqurn';
+    const maxMessages = document.getElementById("max-messages").value;
+    const messageFade = document.getElementById("message-fade").value;
+    const bgOpacity = document.getElementById("bg-opacity").value;
 
-  // Kullanıcı adı kalın, mesaj metni normal
-  const usernameElement = document.createElement('strong');
-  usernameElement.classList.add('username');
-  usernameElement.textContent = messageData.user;
-
-  const messageText = document.createElement('span');
-  messageText.classList.add('message-text');
-  messageText.innerHTML = messageData.message;  // Eğer emoji varsa, burada işlenecek
-
-  messageElement.appendChild(usernameElement);
-  messageElement.appendChild(messageText);
-
-  chatContainer.prepend(messageElement); // Mesajı üstte göster
-
-  // Eğer fazla mesaj varsa, ilkini sil
-  if (chatContainer.children.length > 50) {
-    chatContainer.removeChild(chatContainer.lastChild);
-  }
+    // Ayarları yerel depolama veya başka bir yerde saklayabilirsin
+    console.log("Settings Saved:", { channel, maxMessages, messageFade, bgOpacity });
 }
 
-// Kanal adı ve diğer ayarları kaydetme
-saveSettingsButton.addEventListener('click', () => {
-  channel = channelInput.value.trim();
-  connectToChat();
-});
+// Ayarları açıp kapatma fonksiyonu
+function toggleSettings() {
+    const settingsContent = document.getElementById("settings-content");
+    settingsContent.classList.toggle("hidden");
+}
 
-// Ayar paneli açma
-settingsToggle.addEventListener('click', () => {
-  settingsContent.classList.toggle('hidden');
-});
+// Sayfa yüklendiğinde gerekli olayları başlat
+document.addEventListener("DOMContentLoaded", () => {
+    // Chat bağlantısını başlat
+    connectToChat();
 
-// Sayfa yüklendiğinde chat'e bağlan
-window.onload = () => {
-  connectToChat();
-};
+    // Ayarları kaydetmek için buton
+    const saveSettingsButton = document.getElementById('save-settings');
+    saveSettingsButton.addEventListener('click', saveSettings);
+
+    // Ayarları açıp kapatmak için buton
+    const settingsToggleButton = document.getElementById('settings-toggle');
+    settingsToggleButton.addEventListener('click', toggleSettings);
+});
