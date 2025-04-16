@@ -1,70 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kick Chat Overlay</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div id="chat-container"></div>
-
-  <script>
-    const chatContainer = document.getElementById('chat-container');
-    const userColors = {};
-    const maxMessages = 10;
-
-    function getRandomColor() {
-      const colors = ['#ff5e5e', '#ffd15e', '#5eff8a', '#5ecbff', '#b75eff', '#ff5ecd'];
-      return colors[Math.floor(Math.random() * colors.length)];
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
-
-    function parseEmojis(text) {
-      return text.replace(/:[a-zA-Z0-9_]+:/g, match => {
-        const emoji = match.slice(1, -1);
-        return `<img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple/img/apple/64/${emoji}.png" alt="${emoji}" style="height: 20px; vertical-align: middle;" onerror="this.remove()">`;
-      });
-    }
-
-    function addMessage(username, message) {
-      if (!userColors[username]) {
-        userColors[username] = getRandomColor();
-      }
-
-      const div = document.createElement('div');
-      div.className = 'chat-message';
-      div.innerHTML = `<span class="username" style="color: ${userColors[username]}">${escapeHtml(username)}:</span> ${parseEmojis(escapeHtml(message))}`;
-
-      chatContainer.appendChild(div);
-
-      while (chatContainer.children.length > maxMessages) {
-        chatContainer.removeChild(chatContainer.firstChild);
-      }
-    }
-
-    // WebSocket bağlantısı
-    const channel = "byqurn"; // Kanal adı burada
-    const ws = new WebSocket(`wss://chat.kick.com/${channel}`);
-
-    ws.addEventListener('message', (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'message') {
-          const username = data.data.sender.username;
-          const message = data.data.content;
-          addMessage(username, message);
-        }
-      } catch (e) {
-        console.error('Mesaj parse edilemedi:', e);
-      }
-    });
-  </script>
-
+  <div id="connection-status" class="status-indicator">Connecting...</div>
+  
+  <div class="settings-panel">
+    <button id="settings-toggle">⚙️</button>
+    <div id="settings-content" class="hidden">
+      <div class="setting-group">
+        <label for="channel-input">Channel:</label>
+        <input type="text" id="channel-input" placeholder="Enter channel name" value="byqurn" />
+      </div>
+      <div class="setting-group">
+        <label for="max-messages">Max Messages:</label>
+        <input type="number" id="max-messages" min="5" max="50" value="10" />
+      </div>
+      <div class="setting-group">
+        <label for="message-fade">Message Fade (sec):</label>
+        <input type="number" id="message-fade" min="0" max="60" value="0" />
+        <span class="hint">0 = no fade</span>
+      </div>
+      <div class="setting-group">
+        <label>Background Opacity:</label>
+        <input type="range" id="bg-opacity" min="0" max="100" value="60" />
+        <span id="opacity-value">60%</span>
+      </div>
+      <button id="save-settings">Save Settings</button>
+    </div>
+  </div>
+  
+  <script src="script.js"></script>
 </body>
 </html>
