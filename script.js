@@ -1,261 +1,112 @@
-// Configuration
-let config = {
-  channel: "byqurn",
-  maxMessages: 10,
-  messageFadeTime: 0, // in seconds, 0 = no fade
-  backgroundOpacity: 60, // percentage
-}
+const chatContainer = document.getElementById('chat-container');
+const connectionStatus = document.getElementById('connection-status');
+const settingsToggle = document.getElementById('settings-toggle');
+const settingsContent = document.getElementById('settings-content');
+const saveSettingsButton = document.getElementById('save-settings');
+const channelInput = document.getElementById('channel-input');
+const maxMessagesInput = document.getElementById('max-messages');
+const messageFadeInput = document.getElementById('message-fade');
+const bgOpacityInput = document.getElementById('bg-opacity');
+const opacityValue = document.getElementById('opacity-value');
 
-// DOM Elements
-const chatContainer = document.getElementById("chat-container")
-const connectionStatus = document.getElementById("connection-status")
-const settingsToggle = document.getElementById("settings-toggle")
-const settingsContent = document.getElementById("settings-content")
-const channelInput = document.getElementById("channel-input")
-const maxMessagesInput = document.getElementById("max-messages")
-const messageFadeInput = document.getElementById("message-fade")
-const bgOpacityInput = document.getElementById("bg-opacity")
-const opacityValue = document.getElementById("opacity-value")
-const saveSettingsBtn = document.getElementById("save-settings")
+let userColors = {};
+let maxMessages = 10;
+let messageFade = 0;
+let bgOpacity = 60;
+let channel = 'byqurn';
 
-// State
-const userColors = {}
-let ws = null
-let reconnectAttempts = 0
-let reconnectTimeout = null
-
-// Load saved settings
-function loadSettings() {
-  const savedSettings = localStorage.getItem("kickChatSettings")
-  if (savedSettings) {
-    try {
-      config = { ...config, ...JSON.parse(savedSettings) }
-
-      // Update UI with saved settings
-      channelInput.value = config.channel
-      maxMessagesInput.value = config.maxMessages
-      messageFadeInput.value = config.messageFadeTime
-      bgOpacityInput.value = config.backgroundOpacity
-      opacityValue.textContent = `${config.backgroundOpacity}%`
-
-      // Apply background opacity
-      updateBackgroundOpacity(config.backgroundOpacity)
-    } catch (e) {
-      console.error("Failed to load settings:", e)
-    }
-  }
-}
-
-// Save settings
+// Ayarları kaydet
 function saveSettings() {
-  config.channel = channelInput.value.trim()
-  config.maxMessages = Number.parseInt(maxMessagesInput.value)
-  config.messageFadeTime = Number.parseInt(messageFadeInput.value)
-  config.backgroundOpacity = Number.parseInt(bgOpacityInput.value)
-
-  localStorage.setItem("kickChatSettings", JSON.stringify(config))
-
-  // Apply settings
-  updateBackgroundOpacity(config.backgroundOpacity)
-
-  // Reconnect to new channel if changed
-  connectWebSocket()
-
-  // Hide settings panel
-  settingsContent.classList.add("hidden")
+  channel = channelInput.value || 'byqurn';
+  maxMessages = parseInt(maxMessagesInput.value, 10);
+  messageFade = parseInt(messageFadeInput.value, 10);
+  bgOpacity = parseInt(bgOpacityInput.value, 10);
+  opacityValue.textContent = `${bgOpacity}%`;
+  chatContainer.style.backgroundColor = `rgba(0, 0, 0, ${bgOpacity / 100})`;
+  reconnectWebSocket();
 }
 
-// Update background opacity
-function updateBackgroundOpacity(opacity) {
-  const chatMessages = document.querySelectorAll(".chat-message")
-  chatMessages.forEach((msg) => {
-    msg.style.background = `rgba(0, 0, 0, ${opacity / 100})`
-  })
-}
-
-// Generate random color for usernames
-function getRandomColor() {
-  const colors = [
-    "#ff5e5e",
-    "#ffd15e",
-    "#5eff8a",
-    "#5ecbff",
-    "#b75eff",
-    "#ff5ecd",
-    "#ff9c5e",
-    "#5effdb",
-    "#d1ff5e",
-    "#5e7bff",
-    "#ff5e7b",
-    "#c4ff5e",
-  ]
-  return colors[Math.floor(Math.random() * colors.length)]
-}
-
-// Escape HTML to prevent XSS
-function escapeHtml(text) {
-  const div = document.createElement("div")
-  div.textContent = text
-  return div.innerHTML
-}
-
-// Parse emojis in text
-function parseEmojis(text) {
-  // Basic emoji parsing - this could be enhanced with a proper emoji library
-  return text.replace(/:[a-zA-Z0-9_]+:/g, (match) => {
-    const emojiName = match.slice(1, -1)
-    return `<span class="emoji">😊</span>`
-  })
-}
-
-// Add message to chat
-function addMessage(username, message, badges = []) {
-  if (!userColors[username]) {
-    userColors[username] = getRandomColor()
-  }
-
-  const div = document.createElement("div")
-  div.className = "chat-message"
-  div.style.background = `rgba(0, 0, 0, ${config.backgroundOpacity / 100})`
-
-  // Create badges HTML
-  let badgesHtml = ""
-  if (badges.includes("moderator")) {
-    badgesHtml += '<span class="badge badge-mod">MOD</span>'
-  }
-  if (badges.includes("subscriber")) {
-    badgesHtml += '<span class="badge badge-sub">SUB</span>'
-  }
-  if (badges.includes("vip")) {
-    badgesHtml += '<span class="badge badge-vip">VIP</span>'
-  }
-
-  div.innerHTML = `${badgesHtml}<span class="username" style="color: ${userColors[username]}">${escapeHtml(username)}:</span> ${parseEmojis(escapeHtml(message))}`
-
-  chatContainer.appendChild(div)
-
-  // Remove old messages
-  while (chatContainer.children.length > config.maxMessages) {
-    chatContainer.removeChild(chatContainer.firstChild)
-  }
-
-  // Set up message fade if enabled
-  if (config.messageFadeTime > 0) {
-    setTimeout(() => {
-      div.classList.add("fading")
-      setTimeout(() => {
-        if (div.parentNode === chatContainer) {
-          chatContainer.removeChild(div)
-        }
-      }, 500)
-    }, config.messageFadeTime * 1000)
-  }
-}
-
-// Connect to WebSocket
-function connectWebSocket() {
-  // Close existing connection if any
+// WebSocket bağlantısını kur
+let ws;
+function reconnectWebSocket() {
   if (ws) {
-    ws.close()
+    ws.close(); // eski bağlantıyı kapat
   }
+  
+  connectionStatus.textContent = 'Connecting...';
 
-  connectionStatus.textContent = "Connecting..."
-  connectionStatus.className = "status-indicator"
+  ws = new WebSocket(`wss://chat.kick.com/${channel}`);
 
-  try {
-    ws = new WebSocket(`wss://chat.kick.com/chat/${config.channel}`)
+  ws.onopen = () => {
+    connectionStatus.textContent = 'Connected';
+  };
 
-    ws.addEventListener("open", () => {
-      connectionStatus.textContent = "Connected"
-      connectionStatus.className = "status-indicator connected"
-      reconnectAttempts = 0
+  ws.onerror = () => {
+    connectionStatus.textContent = 'Failed to connect';
+  };
 
-      // Hide status after 3 seconds
-      setTimeout(() => {
-        connectionStatus.style.opacity = "0"
-      }, 3000)
-    })
+  ws.onclose = () => {
+    connectionStatus.textContent = 'Disconnected';
+  };
 
-    ws.addEventListener("message", (event) => {
-      try {
-        const data = JSON.parse(event.data)
-
-        if (data.event === "chatMessage") {
-          const username = data.sender.username
-          const message = data.content
-          const badges = []
-
-          // Extract badges
-          if (data.sender.is_moderator) badges.push("moderator")
-          if (data.sender.is_subscriber) badges.push("subscriber")
-          if (data.sender.is_vip) badges.push("vip")
-
-          addMessage(username, message, badges)
-        }
-      } catch (e) {
-        console.error("Failed to parse message:", e)
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.type === 'message') {
+        const username = data.data.sender.username;
+        const message = data.data.content;
+        addMessage(username, message);
       }
-    })
+    } catch (e) {
+      console.error('Message parse error:', e);
+    }
+  };
+}
 
-    ws.addEventListener("close", () => {
-      handleDisconnect()
-    })
+// Kullanıcı adını ve mesajı ekle
+function addMessage(username, message) {
+  if (!userColors[username]) {
+    userColors[username] = getRandomColor();
+  }
 
-    ws.addEventListener("error", (error) => {
-      console.error("WebSocket error:", error)
-      handleDisconnect()
-    })
-  } catch (error) {
-    console.error("Failed to connect:", error)
-    handleDisconnect()
+  const div = document.createElement('div');
+  div.className = 'chat-message';
+  div.innerHTML = `<span class="username" style="color: ${userColors[username]}">${username}:</span> ${parseEmojis(message)}`;
+
+  chatContainer.appendChild(div);
+
+  while (chatContainer.children.length > maxMessages) {
+    chatContainer.removeChild(chatContainer.firstChild);
+  }
+
+  if (messageFade > 0) {
+    setTimeout(() => {
+      div.style.opacity = 0;
+    }, messageFade * 1000);
   }
 }
 
-// Handle disconnection and reconnect
-function handleDisconnect() {
-  connectionStatus.textContent = `Disconnected. Reconnecting... (${reconnectAttempts + 1})`
-  connectionStatus.className = "status-indicator error"
-  connectionStatus.style.opacity = "0.7"
-
-  // Clear any existing reconnect timeout
-  if (reconnectTimeout) {
-    clearTimeout(reconnectTimeout)
-  }
-
-  // Exponential backoff for reconnect
-  const delay = Math.min(30000, 1000 * Math.pow(1.5, reconnectAttempts))
-  reconnectAttempts++
-
-  reconnectTimeout = setTimeout(() => {
-    connectWebSocket()
-  }, delay)
+// Emoji desteği ekle
+function parseEmojis(text) {
+  return text.replace(/:[a-zA-Z0-9_]+:/g, match => {
+    const emoji = match.slice(1, -1);
+    return `<img src="https://cdn.jsdelivr.net/npm/emoji-datasource-apple/img/apple/64/${emoji}.png" alt="${emoji}" style="height: 20px; vertical-align: middle;" onerror="this.remove()">`;
+  });
 }
 
-// Event Listeners
-settingsToggle.addEventListener("click", () => {
-  settingsContent.classList.toggle("hidden")
-})
+// Rastgele renk seç
+function getRandomColor() {
+  const colors = ['#ff5e5e', '#ffd15e', '#5eff8a', '#5ecbff', '#b75eff', '#ff5ecd'];
+  return colors[Math.floor(Math.random() * colors.length)];
+}
 
-saveSettingsBtn.addEventListener("click", saveSettings)
+// Ayarları kaydet butonuna tıklama
+saveSettingsButton.addEventListener('click', saveSettings);
 
-bgOpacityInput.addEventListener("input", () => {
-  opacityValue.textContent = `${bgOpacityInput.value}%`
-})
+// Ayarları açma / kapama
+settingsToggle.addEventListener('click', () => {
+  settingsContent.classList.toggle('hidden');
+});
 
-// Initialize
-document.addEventListener("DOMContentLoaded", () => {
-  loadSettings()
-  connectWebSocket()
-
-  // Add test message for preview
-  setTimeout(() => {
-    addMessage("KickChat", "Welcome to the Kick Chat Overlay! 👋", ["moderator"])
-  }, 1000)
-})
-
-// Handle visibility change to reconnect when tab becomes visible again
-document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && (!ws || ws.readyState !== WebSocket.OPEN)) {
-    connectWebSocket()
-  }
-})
+// Sayfa yüklendiğinde WebSocket'i başlat
+window.onload = reconnectWebSocket;
