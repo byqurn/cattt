@@ -1,20 +1,24 @@
 const chatContainer = document.getElementById('chat-container');
 const connectionStatus = document.getElementById('connection-status');
+let socket;
 let channel = 'byqurn'; // Default channel
 const settingsToggle = document.getElementById('settings-toggle');
 const settingsContent = document.getElementById('settings-content');
 const saveSettingsButton = document.getElementById('save-settings');
 const channelInput = document.getElementById('channel-input');
 
-let socket;
+let publicKey = 'nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq/+l1WnlRrGSolDMA+A8\n6rAhMbQGmQ2SapVcGM3zq8ANXjnhDWocMqfWcTd95btDydITa10kDvHzw9WQOqp2\nMZI7ZyrfzJuz5nhTPCiJwTwnEtWft7nV14BYRDHvlfqPUaZ+1KR4OCaO/wWIk/rQ\nL/TjY0M70gse8rlBkbo2a8rKhu69RQTRsoaf4DVhDPEeSeI5jVrRDGAMGL3cGuyY\n6CLKGdjVEM78g3JfYOvDU/RvfqD7L89TZ3iN94jrmWdGz34JNlEI5hqK8dd7C5EF\nBEbZ5jgB8s8ReQV8H+MkuffjdAj3ajDDX3DOJMIut1lBrUVD1AaSrGCKHooWoL2e\ntwIDAQAB\n-----END PUBLIC KEY-----"'; // Public Key'yi buraya ekle
 
 // WebSocket bağlantısı kurma
 function connectToChat() {
   connectionStatus.textContent = 'Connecting...';
+  
+  // WebSocket URL'yi doğru endpoint ile değiştirdiğinden emin ol
   socket = new WebSocket(`wss://chat.kick.com/${channel}`);
 
   socket.onopen = () => {
     connectionStatus.textContent = 'Connected';
+    console.log('WebSocket connection established.');
   };
 
   socket.onerror = (error) => {
@@ -24,6 +28,7 @@ function connectToChat() {
 
   socket.onclose = () => {
     connectionStatus.textContent = 'Disconnected';
+    console.log('WebSocket connection closed.');
   };
 
   socket.onmessage = (event) => {
