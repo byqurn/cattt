@@ -112,7 +112,14 @@ settingsToggle.addEventListener('click', () => {
 window.onload = reconnectWebSocket;
 
 
-
+fetch('https://api.kick.com/public/v1/channels/byqurn')
+  .then(response => response.json())
+  .then(data => {
+    console.log('Channel data:', data);
+  })
+  .catch(error => {
+    console.error('Error fetching channel data:', error);
+  });
 
 const testSocket = new WebSocket('wss://echo.websocket.org');
 
