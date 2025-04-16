@@ -110,3 +110,25 @@ settingsToggle.addEventListener('click', () => {
 
 // Sayfa yüklendiğinde WebSocket'i başlat
 window.onload = reconnectWebSocket;
+
+
+
+
+const testSocket = new WebSocket('wss://echo.websocket.org');
+
+testSocket.onopen = () => {
+  console.log('Test WebSocket bağlantısı başarıyla kuruldu!');
+  testSocket.send('Merhaba, bu bir test mesajıdır.');
+};
+
+testSocket.onmessage = (event) => {
+  console.log('Test mesajı alındı:', event.data);
+};
+
+testSocket.onerror = (error) => {
+  console.log('Test WebSocket hatası:', error);
+};
+
+testSocket.onclose = () => {
+  console.log('Test WebSocket bağlantısı kapandı');
+};
