@@ -1,5 +1,6 @@
 const chatContainer = document.getElementById('chat-container');
 const connectionStatus = document.getElementById('connection-status');
+const saveSettingsButton = document.getElementById('save-settings'); // Bu satırı ekledim
 let socket;
 let channel = 'byqurn'; // Sabit kanal adı 'byqurn'
 
